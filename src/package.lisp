@@ -31,5 +31,8 @@
 
 (defpackage :cl-giskard
   (:use :cl :roslisp)
-  (:export #:cut-test
-           #:start-cutplan-node))
+  (:export #:cancel-action-goal
+           #:action-goal-status
+           #:action-goal-result
+           #:send-action-goal
+           #:wait-for-action-result))

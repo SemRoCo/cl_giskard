@@ -17,6 +17,6 @@ include_directories(${catkin_INCLUDE_DIRS})
 catkin_package(
 #  INCLUDE_DIRS
 #  LIBRARIES
-  CATKIN_DEPENDS roslisp cl_tf cl_tf2 cl_transforms_stamped std_msgs giskard_msgs message_runtime
+  CATKIN_DEPENDS roslisp cl_tf cl_tf2 cl_transforms_stamped std_msgs giskard_msgs message_runtime actionlib
 )
 

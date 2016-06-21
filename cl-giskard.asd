@@ -12,7 +12,7 @@
                :cl-transforms-stamped
                :giskard_msgs-msg
                :giskard_msgs-srv
-               :giskard_msgs-act
+               :actionlib-lisp
                :ros-load-manifest
                :roslisp-utilities
                :roslisp)

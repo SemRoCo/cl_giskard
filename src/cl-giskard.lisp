@@ -29,7 +29,7 @@
 
 (in-package :cl-giskard)
 
-(defparameter *base-frame* "/map")
+(defparameter *base-frame* "/base_link")
 (defparameter *left-goal-frame* "/l_wrist_roll_link")
 (defparameter *left-right-frame* "/r_wrist_roll_link")
 
@@ -44,10 +44,77 @@
 
 (defparameter *pub-giskard-goal* nil)
 
+(defparameter *giskard-action-client* nil)
+
+(defconstant *giskard-action-server-name* "pr2_controller_action_server")
+(defconstant *giskard-action-server-type* "giskard_msgs/WholeBodyAction")
+(defconstant *giskard-action-goal-part-type* "giskard_msgs/SemanticArmCommand")
+(defconstant *giskard-action-goal-type* "giskard_msgs/SemanticWholeBodyCommand")
+
 (defparameter *giskard-goal-l-ee* nil)
 (defparameter *giskard-goal-r-ee* nil)
 
 (defparameter *tf-listener* nil)
+
+
+;;;; Action-interface to the giskard controller.
+;;;; 
+
+(defun ensure-giskard-action-client ()
+  (if *giskard-action-client*
+    *giskard-action-client*
+    (actionlib-lisp:make-simple-action-client *giskard-action-server-name* *giskard-action-server-type*)))
+
+(defun cancel-action-goal ()
+  (actionlib-lisp:cancel-goal (ensure-giskard-action-client)))
+
+(defun action-goal-status ()
+  (actionlib-lisp:state (ensure-giskard-action-client)))
+
+(defun action-goal-result ()
+  (actionlib-lisp:result (ensure-giskard-action-client)))
+
+(defun wait-for-action-result (&optional (timeout 0))
+  (actionlib-lisp:wait-for-result (ensure-giskard-action-client) timeout))
+
+(defun send-action-goal (pose-left-ee pose-right-ee &key 
+                         (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
+                         (done-cb (lambda (status result) (declare (ignore state) (ignore result))))
+                         (active-cb (lambda () )))
+  "Takes two poses (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) and publishes them to the giskard controller action server. If a pose is given as nil, then the corresponding arm will keep doing what it was doing before this function was called (and if it got no previous goals, it will stay put).
+   
+   feedback-callback should be either T (the default value for actionlib:call-goal) or a (lambda (msg) ..) where msg is a giskard_msgs-msg:ControllerFeedback message.
+   
+   should-abort-callback should either be left unset (in which case the goal will never abort, unless it times out), or set to a (lambda (goal-handle feedback-msg) ..) that returns T if the goal should be aborted and NIL otherwise. feedback-msg is a giskard_msgs-msg:ControllerFeedback 
+
+   Both feedback-callbakc and should-abort-callback (if they exist) will be called whenever a feedback message is received. feedback-callback is called first."
+  (let* ((left-ee-goal (if pose-left-ee 
+                           (roslisp:make-message *giskard-action-goal-part-type* :goal (ensure-pose-stamped-msg pose-left-ee) :process T)
+                           (roslisp:make-message *giskard-action-goal-part-type*)))
+         (right-ee-goal (if pose-right-ee 
+                            (roslisp:make-message *giskard-action-goal-part-type* :goal (ensure-pose-stamped-msg pose-right-ee) :process T)
+                            (roslisp:make-message *giskard-action-goal-part-type*))))
+    (actionlib-lisp:send-goal (ensure-giskard-action-client)
+                              (actionlib-lisp:make-action-goal-msg (ensure-giskard-action-client)
+                                                                   command (roslisp:make-message *giskard-action-goal-type*
+                                                                                                 :left_ee_goal left-ee-goal
+                                                                                                 :right_ee_goal right-ee-goal))
+                              :feedback-cb feedback-cb
+                              :done-cb done-cb
+                              :active-cb active-cb)))
+
+
+
+;;;; Topic-interface to the giskard controller itself. These functions look like they should be exported by the package, but aren't.
+;;;; This is because the topic interface to the controller itself is not actually intended for use by anyone except giskard.
+;;;; These functions have been left here rather than deleted though because a) they took some work and polish and b) I could bet we'll need
+;;;; that topic interface someday ;)
+;;;; Still, until that day happens, don't use these functions, they are not maintained.
+
+;;;; TODO: handle initializing goal mirror (currently done via a lookup of the transform from base_link to *_wrist_roll_link, but the eef may be in a different link)
+;;;; TODO: add checks that goal poses are given relative to base_link; decide what to do in case they are not (a tf lookup is the obvious answer, but the reason
+;;;; the giskard controller expects poses in a particular frame is to avoid tf-induced delays; lack of tf-delays would also be a reason why a wrapper to the topic
+;;;; interface might be useful, so tf lookups should be avoided)
 
 (defun ensure-tf-listener ()
   (if *tf-listener*
@@ -131,5 +198,4 @@
 (defun setup-feedback-listener (callback-fn &key (max-queue-length 'infty))
   "Configures callback-fn to be called whenever the giskard controller feedback topic is updated."
   (roslisp:subscribe *giskard-feedback-topic-name* *giskard-feedback-topic-type* callback-fn :max-queue-length max-queue-length))
-
 
