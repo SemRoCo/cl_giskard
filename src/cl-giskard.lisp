@@ -35,12 +35,10 @@
 
 (defconstant *giskard-command-topic-name* "/pr2_controler/goal")
 (defconstant *giskard-command-topic-type* "giskard_msgs/WholeBodyCommand")
+(defconstant *giskard-command-topic-part-type* "giskard_msgs/ArmCommand")
 
 (defconstant *giskard-feedback-topic-name* "/pr2_controler/feedback")
 (defconstant *giskard-feedback-topic-type* "giskard_msgs/ControllerFeedback")
-
-(defconstant *giskard-state-topic-name* "/state")
-(defconstant *giskard-state-topic-type* "giskard_msgs/WholeBodyState")
 
 (defparameter *pub-giskard-goal* nil)
 
@@ -48,14 +46,37 @@
 
 (defconstant *giskard-action-server-name* "pr2_controller_action_server")
 (defconstant *giskard-action-server-type* "giskard_msgs/WholeBodyAction")
-(defconstant *giskard-action-goal-part-type* "giskard_msgs/SemanticArmCommand")
-(defconstant *giskard-action-goal-type* "giskard_msgs/SemanticWholeBodyCommand")
-
-(defparameter *giskard-goal-l-ee* nil)
-(defparameter *giskard-goal-r-ee* nil)
+(defconstant *giskard-action-goal-part-type* "giskard_msgs/ArmCommand")
+(defconstant *giskard-action-goal-type* "giskard_msgs/WholeBodyCommand")
 
 (defparameter *tf-listener* nil)
 
+
+(defun ps->msg (pose-stamped)
+  (cl-transforms-stamped:make-pose-stamped-msg (cl-transforms-stamped:pose pose-stamped)
+                                               (cl-transforms-stamped:frame-id pose-stamped)
+                                               (cl-transforms-stamped:stamp pose-stamped)))
+
+(defun ensure-pose-stamped-msg (pose-object)
+  (cond
+    ((typep pose-object 'geometry_msgs-msg:Pose)
+      pose-object)
+    ((typep pose-object 'cl-transforms-stamped:pose-stamped)
+      (ps->msg pose-object))
+    ((typep pose-object 'cl-transforms-stamped:transform-stamped)
+      (ps->msg (cl-transforms-stamped:transform-stamped->pose-stamped pose-object)))
+    ((typep pose-object 'cl-transforms-stamped:pose)
+      (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
+                                                        0.0
+                                                        (cl-transforms-stamped:translation pose-object)
+                                                        (cl-transforms-stamped:rotation pose-object))))
+    ((typep pose-object 'cl-transforms-stamped:transform)
+      (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
+                                                        0.0
+                                                        (cl-transforms-stamped:translation pose-object)
+                                                        (cl-transforms-stamped:rotation pose-object))))
+    (T
+      (error "Object passed to ensure-pose-stamped-msg is not of a type that can be converted to geometry_msgs/PoseStamped."))))
 
 ;;;; Action-interface to the giskard controller.
 ;;;; 
@@ -121,47 +142,6 @@
     *tf-listener*
     (setf *tf-listener* (make-instance 'cl-tf:transform-listener))))
 
-(defun ensure-goal-mirror (arm)
-  (cond
-    ((not (typep arm 'string))
-      (error "ensure-goal-mirror expects the type of the arm parameter to be string; instead got ~S" (type-of arm)))
-    ((equal (string-downcase arm) "left")
-      (if *giskard-goal-l-ee*
-        *giskard-goal-l-ee*
-        (cl-tf:lookup-transform (ensure-tf-listener) *base-frame* *left-goal-frame*)))
-    ((equal (string-downcase arm) "right")
-      (if *giskard-goal-l-ee*
-        *giskard-goal-l-ee*
-        (cl-tf:lookup-transform (ensure-tf-listener) *base-frame* *right-goal-frame*))))
-    (T
-      (error "ensure-goal-mirror expects the arm parameter to be left or right; instead got ~S" arm))))
-
-(defun ps->msg (pose-stamped)
-  (cl-transforms-stamped:make-pose-stamped-msg (cl-transforms-stamped:pose pose-stamped)
-                                               (cl-transforms-stamped:frame-id pose-stamped)
-                                               (cl-transforms-stamped:stamp pose-stamped)))
-
-(defun ensure-pose-stamped-msg (pose-object)
-  (cond
-    ((typep pose-object 'geometry_msgs-msg:Pose)
-      pose-object)
-    ((typep pose-object 'cl-transforms-stamped:pose-stamped)
-      (ps->msg pose-object))
-    ((typep pose-object 'cl-transforms-stamped:transform-stamped)
-      (ps->msg (cl-transforms-stamped:transform-stamped->pose-stamped pose-object)))
-    ((typep pose-object 'cl-transforms-stamped:pose)
-      (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
-                                                        0.0
-                                                        (cl-transforms-stamped:translation pose-object)
-                                                        (cl-transforms-stamped:rotation pose-object))))
-    ((typep pose-object 'cl-transforms-stamped:transform)
-      (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
-                                                        0.0
-                                                        (cl-transforms-stamped:translation pose-object)
-                                                        (cl-transforms-stamped:rotation pose-object))))
-    (T
-      (error "Object passed to ensure-pose-stamped-msg is not of a type that can be converted to geometry_msgs/PoseStamped."))))
-
 (defun ensure-goal-publisher ()
   (if *pub-giskard-goal*
     *pub-giskard-goal*
@@ -174,26 +154,32 @@
   "Takes two poses (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) and publishes them to the giskard controller command topic. If a pose is given as nil, then this function will send the previous non-NIL goal sent to that arm. If no non-NIL pose was sent to that arm, it will send the arm's current pose (so the arm should not move)."
   (let* ((left-ee-goal (if pose-left-ee 
                            (ensure-pose-stamped-msg pose-left-ee)
-                           (ensure-goal-mirror "left")))
+                           nil))
          (right-ee-goal (if pose-right-ee 
                             (ensure-pose-stamped-msg pose-right-ee)
-                            (ensure-goal-mirror "right"))))
-    (setf *giskard-goal-l-ee* left-ee-goal)
-    (setf *giskard-goal-r-ee* right-ee-goal)
+                            nil))
+         (left-ee (if left-ee-goal
+                    (roslisp:make-message *giskard-command-topic-part-type*
+                                          :goal left-ee-goal
+                                          :process T)
+                    (roslisp:make-message *giskard-command-topic-part-type*)))
+         (right-ee (if right-ee-goal
+                     (roslisp:make-message *giskard-command-topic-part-type*
+                                           :goal right-ee-goal
+                                           :process T)
+                    (roslisp:make-message *giskard-command-topic-part-type*))))
     (roslisp:publish (ensure-goal-publisher)
                      (roslisp:make-message *giskard-command-topic-type*
-                                           :left_ee_goal left-ee-goal
-                                           :right_ee_goal right-ee-goal))))
+                                           :left_ee left-ee
+                                           :right_ee right-ee))))
 
 (defun send-left-arm-command (pose-left-ee)
   "A convenience function to send a goal (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) just to the left arm. The right arm will continue to do what it was doing (following the previous goal, or staying put if there was no previous goal)."
-  (let* ((pose-right-ee (ensure-goal-mirror "right")))
-    (send-two-arm-command pose-left-ee pose-right-ee)))
+  (send-two-arm-command pose-left-ee nil))
 
 (defun send-right-arm-command (pose-right-ee)
   "A convenience function to send a goal (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) just to the right arm. The right arm will continue to do what it was doing (following the previous goal, or staying put if there was no previous goal)."
-  (let* ((pose-left-ee (ensure-goal-mirror "left")))
-    (send-two-arm-command pose-left-ee pose-right-ee)))
+  (send-two-arm-command nil pose-right-ee))
 
 (defun setup-feedback-listener (callback-fn &key (max-queue-length 'infty))
   "Configures callback-fn to be called whenever the giskard controller feedback topic is updated."
