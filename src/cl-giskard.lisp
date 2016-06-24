@@ -30,8 +30,8 @@
 (in-package :cl-giskard)
 
 (defparameter *base-frame* "/base_link")
-(defparameter *left-goal-frame* "/l_wrist_roll_link")
-(defparameter *left-right-frame* "/r_wrist_roll_link")
+(defparameter *left-goal-frame* "/l_gripper_tool_frame")
+(defparameter *right-goal-frame* "/r_gripper_tool_frame")
 
 (defconstant *giskard-command-topic-name* "/pr2_controler/goal")
 (defconstant *giskard-command-topic-type* "giskard_msgs/WholeBodyCommand")
@@ -51,6 +51,11 @@
 
 (defparameter *tf-listener* nil)
 
+
+(defun ensure-tf-listener ()
+  (if *tf-listener*
+    *tf-listener*
+    (setf *tf-listener* (make-instance 'cl-tf:transform-listener))))
 
 (defun ps->msg (pose-stamped)
   (cl-transforms-stamped:make-pose-stamped-msg (cl-transforms-stamped:pose pose-stamped)
@@ -81,6 +86,12 @@
 ;;;; Action-interface to the giskard controller.
 ;;;; 
 
+(defun get-left-arm-transform ()
+  (cl-tf:lookup-transform (ensure-tf-listener) *base-frame* *left-goal-frame*))
+
+(defun get-right-arm-transform ()
+  (cl-tf:lookup-transform (ensure-tf-listener) *base-frame* *right-goal-frame*))
+
 (defun ensure-giskard-action-client ()
   (if *giskard-action-client*
     *giskard-action-client*
@@ -97,6 +108,29 @@
 
 (defun wait-for-action-result (&optional (timeout 0))
   (actionlib-lisp:wait-for-result (ensure-giskard-action-client) timeout))
+
+(defun left-arm-converged ()
+  (let* ((result (action-goal-result)))
+    (roslisp:with-fields ((left-arm-converged left_arm_converged)) result
+      left-arm-converged)))
+
+(defun right-arm-converged ()
+  (let* ((result (action-goal-result)))
+    (roslisp:with-fields ((right-arm-converged right_arm_converged)) result
+      right-arm-converged)))
+
+(defun arms-converged ()
+  (and (left-arm-converged) (right-arm-converged)))
+
+(defun msg->feedback (feedback-msg)
+  ;; Perhaps in the future we'll want a Lisp structure to hold the data of a giskard feedback message,
+  ;; but until then using the message itself is good enough.
+  feedback-msg)
+
+(defun msg->result (result-msg)
+  ;; Perhaps in the future we'll want a Lisp structure to hold the data of a giskard feedback message,
+  ;; but until then using the message itself is good enough.
+  result-msg)
 
 (defun send-action-goal (pose-left-ee pose-right-ee &key 
                          (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
@@ -120,11 +154,25 @@
                                                                    command (roslisp:make-message *giskard-action-goal-type*
                                                                                                  :left_ee_goal left-ee-goal
                                                                                                  :right_ee_goal right-ee-goal))
-                              :feedback-cb feedback-cb
-                              :done-cb done-cb
+                              :feedback-cb (lambda (feedback-msg) 
+                                             (let* ((feedback (msg->feedback feedback-msg)))
+                                               (apply feedback-cb (list feedback))))
+                              :done-cb (lambda (status result-msg)
+                                         (let* ((result (msg->result result-msg)))
+                                           (apply done-cb (list status result))))
                               :active-cb active-cb)))
 
+(defun send-left-arm-action (pose-left-ee &key
+                              (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
+                              (done-cb (lambda (status result) (declare (ignore state) (ignore result))))
+                              (active-cb (lambda () )))
+  (send-action-goal pose-left-ee nil :feedback-cb feedback-cb :done-cb done-cb :active-cb active-cb))
 
+(defun send-right-arm-action (pose-right-ee &key
+                               (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
+                               (done-cb (lambda (status result) (declare (ignore state) (ignore result))))
+                               (active-cb (lambda () )))
+  (send-action-goal nil pose-right-ee :feedback-cb feedback-cb :done-cb done-cb :active-cb active-cb))
 
 ;;;; Topic-interface to the giskard controller itself. These functions look like they should be exported by the package, but aren't.
 ;;;; This is because the topic interface to the controller itself is not actually intended for use by anyone except giskard.
@@ -136,11 +184,6 @@
 ;;;; TODO: add checks that goal poses are given relative to base_link; decide what to do in case they are not (a tf lookup is the obvious answer, but the reason
 ;;;; the giskard controller expects poses in a particular frame is to avoid tf-induced delays; lack of tf-delays would also be a reason why a wrapper to the topic
 ;;;; interface might be useful, so tf lookups should be avoided)
-
-(defun ensure-tf-listener ()
-  (if *tf-listener*
-    *tf-listener*
-    (setf *tf-listener* (make-instance 'cl-tf:transform-listener))))
 
 (defun ensure-goal-publisher ()
   (if *pub-giskard-goal*

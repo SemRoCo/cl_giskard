@@ -31,8 +31,15 @@
 
 (defpackage :cl-giskard
   (:use :cl :roslisp)
-  (:export #:cancel-action-goal
+  (:export #:get-left-arm-transform
+           #:get-right-arm-transform
+           #:cancel-action-goal
            #:action-goal-status
            #:action-goal-result
            #:send-action-goal
-           #:wait-for-action-result))
+           #:send-left-arm-action
+           #:send-right-arm-action
+           #:wait-for-action-result
+           #:left-arm-converged
+           #:right-arm-converged
+           #:arms-converged))
