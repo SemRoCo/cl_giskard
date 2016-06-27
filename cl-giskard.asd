@@ -16,7 +16,8 @@
                :actionlib-lisp
                :ros-load-manifest
                :roslisp-utilities
-               :roslisp)
+               :roslisp
+               :geometry_msgs-msg)
   :components
   ((:module "src"
             :components
