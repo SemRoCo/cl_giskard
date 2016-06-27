@@ -65,25 +65,25 @@
                                                (cl-transforms-stamped:stamp pose-stamped)))
 
 (defun ensure-pose-stamped-msg (pose-object)
-  (cond
-    ((typep pose-object 'geometry_msgs-msg:Pose)
-      pose-object)
-    ((typep pose-object 'cl-transforms-stamped:pose-stamped)
-      (ps->msg pose-object))
-    ((typep pose-object 'cl-transforms-stamped:transform-stamped)
-      (ps->msg (cl-transforms-stamped:transform-stamped->pose-stamped pose-object)))
-    ((typep pose-object 'cl-transforms-stamped:pose)
-      (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
-                                                        0.0
-                                                        (cl-transforms-stamped:translation pose-object)
-                                                        (cl-transforms-stamped:rotation pose-object))))
-    ((typep pose-object 'cl-transforms-stamped:transform)
-      (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
-                                                        0.0
-                                                        (cl-transforms-stamped:translation pose-object)
-                                                        (cl-transforms-stamped:rotation pose-object))))
+  (typecase pose-object
+    (geometry_msgs-msg:Pose
+     pose-object)
+    (cl-transforms-stamped:pose-stamped
+     (ps->msg pose-object))
+    (cl-transforms-stamped:transform-stamped
+     (ps->msg (cl-transforms-stamped:transform-stamped->pose-stamped pose-object)))
+    (cl-transforms-stamped:pose
+     (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
+                                                       0.0
+                                                       (cl-transforms-stamped:translation pose-object)
+                                                       (cl-transforms-stamped:rotation pose-object))))
+    (cl-transforms-stamped:transform
+     (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
+                                                       0.0
+                                                       (cl-transforms-stamped:translation pose-object)
+                                                       (cl-transforms-stamped:rotation pose-object))))
     (T
-      (error "Object passed to ensure-pose-stamped-msg is not of a type that can be converted to geometry_msgs/PoseStamped."))))
+     (error "Object passed to ensure-pose-stamped-msg is not of a type that can be converted to geometry_msgs/PoseStamped."))))
 
 ;;;; Action-interface to the giskard controller.
 ;;;; 
