@@ -150,9 +150,13 @@
                            (done-cb (lambda (status result)
                                       (declare (ignore status result))))
                            (active-cb (lambda () )))
-  "Takes two poses (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped
-cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped)
-and publishes them to the giskard controller action server.
+  (declare (type (or null
+                     cl-transforms-stamped:pose
+                     cl-transforms-stamped:pose-stamped
+                     cl-transforms-stamped:transform
+                     cl-transforms-stamped:transform-stamped)
+                 pose-left-ee pose-right-ee))
+  "Takes two poses and publishes them to the giskard controller action server.
 If a pose is given as nil, then the corresponding arm will keep doing
 what it was doing before this function was called (and if it has no previous goals, it will stay put).
 
@@ -236,9 +240,13 @@ active-cb should be left unset or a (lambda () ..)."
         *pub-giskard-goal*)))
 
 (defun send-two-arm-command (pose-left-ee pose-right-ee)
-  "Takes two poses (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped
-cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped)
-and publishes them to the giskard controller command topic.
+  (declare (type (or null
+                     cl-transforms-stamped:pose
+                     cl-transforms-stamped:pose-stamped
+                     cl-transforms-stamped:transform
+                     cl-transforms-stamped:transform-stamped)
+                 pose-left-ee pose-right-ee))
+  "Takes two poses and publishes them to the giskard controller command topic.
 If a pose is given as nil, then this function will send the previous non-NIL goal sent to that arm
 If no non-NIL pose was sent to that arm, it will send the arm's current pose (so the arm should not move)."
   (let* ((left-ee-goal (when pose-left-ee
@@ -261,16 +269,25 @@ If no non-NIL pose was sent to that arm, it will send the arm's current pose (so
                                            :right_ee right-ee))))
 
 (defun send-left-arm-command (pose-left-ee)
-  "A convenience function to send a goal (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped
-cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) just to the left arm.
+  (declare (type (or null
+                     cl-transforms-stamped:pose
+                     cl-transforms-stamped:pose-stamped
+                     cl-transforms-stamped:transform
+                     cl-transforms-stamped:transform-stamped)
+                 pose-left-ee))
+  "A convenience function to send a goal just to the left arm.
 The right arm will continue to do what it was doing (following the previous goal,
 or staying put if there was no previous goal)."
   (send-two-arm-command pose-left-ee nil))
 
 (defun send-right-arm-command (pose-right-ee)
-  "A convenience function to send a goal (OR NIL cl-transforms-stamped:pose
- cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped)
-just to the right arm.
+  (declare (type (or null
+                     cl-transforms-stamped:pose
+                     cl-transforms-stamped:pose-stamped
+                     cl-transforms-stamped:transform
+                     cl-transforms-stamped:transform-stamped)
+                 pose-right-ee))
+  "A convenience function to send a goal just to the right arm.
 The right arm will continue to do what it was doing (following the previous goal,
 or staying put if there was no previous goal)."
   (send-two-arm-command nil pose-right-ee))
