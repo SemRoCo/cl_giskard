@@ -136,13 +136,11 @@
                          (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
                          (done-cb (lambda (status result) (declare (ignore state) (ignore result))))
                          (active-cb (lambda () )))
-  "Takes two poses (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) and publishes them to the giskard controller action server. If a pose is given as nil, then the corresponding arm will keep doing what it was doing before this function was called (and if it got no previous goals, it will stay put).
+  "Takes two poses (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) and publishes them to the giskard controller action server. If a pose is given as nil, then the corresponding arm will keep doing what it was doing before this function was called (and if it has no previous goals, it will stay put).
    
-   feedback-callback should be either T (the default value for actionlib:call-goal) or a (lambda (msg) ..) where msg is a giskard_msgs-msg:ControllerFeedback message.
-   
-   should-abort-callback should either be left unset (in which case the goal will never abort, unless it times out), or set to a (lambda (goal-handle feedback-msg) ..) that returns T if the goal should be aborted and NIL otherwise. feedback-msg is a giskard_msgs-msg:ControllerFeedback 
-
-   Both feedback-callbakc and should-abort-callback (if they exist) will be called whenever a feedback message is received. feedback-callback is called first."
+   feedback-cb should be either left unset or a (lambda (msg) ..) where msg is of type giskard_msgs-msg:WholeBodyState.
+   done-cb should be either left unset or a (lambda (status msg) ..) where status is an actionlib-lisp status and msg is of type giskard_msgs-msg:WholeBodyState.
+   active-cb should be left unset or a (lambda () ..)."
   (let* ((left-ee-goal (if pose-left-ee 
                            (roslisp:make-message *giskard-action-goal-part-type* :goal (ensure-pose-stamped-msg pose-left-ee) :process T)
                            (roslisp:make-message *giskard-action-goal-part-type*)))
