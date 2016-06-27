@@ -50,14 +50,12 @@
 (defparameter *giskard-action-goal-type* "giskard_msgs/WholeBodyCommand")
 
 (defparameter *tf-listener* nil)
+(defparameter *tf-default-timeout* 2.0)
 
 (defun ensure-tf-listener ()
-  (if *tf-listener*
-      *tf-listener*
-      (progn
-        (setf *tf-listener* (make-instance 'cl-tf:transform-listener))
-        (roslisp:wait-duration 1.0)
-        *tf-listener*)))
+  (unless *tf-listener*
+    (setf *tf-listener* (make-instance 'cl-tf:transform-listener)))
+  *tf-listener*)
 
 (defun ensure-pose-stamped-msg (pose-object)
   (typecase pose-object
@@ -89,10 +87,18 @@
 ;;;; 
 
 (defun get-left-arm-transform ()
-  (cl-tf:lookup-transform (ensure-tf-listener) *base-frame* *left-goal-frame*))
+  (cl-tf:lookup-transform
+   (ensure-tf-listener)
+   *base-frame*
+   *left-goal-frame*
+   :timeout *tf-default-timeout*))
 
 (defun get-right-arm-transform ()
-  (cl-tf:lookup-transform (ensure-tf-listener) *base-frame* *right-goal-frame*))
+  (cl-tf:lookup-transform
+   (ensure-tf-listener)
+   *base-frame*
+   *right-goal-frame*
+   :timeout *tf-default-timeout*))
 
 (defun ensure-giskard-action-client ()
   (if *giskard-action-client*
