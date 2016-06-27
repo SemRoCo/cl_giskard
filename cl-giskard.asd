@@ -9,7 +9,6 @@
   :licence "BSD"
   :description "Wrapper giskard->lisp."
   :depends-on (:cl-tf
-               :cl-tf2
                :cl-transforms-stamped
                :giskard_msgs-msg
                :giskard_msgs-srv

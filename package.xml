@@ -20,7 +20,6 @@
   <build_depend>std_msgs</build_depend>
   <build_depend>giskard_msgs</build_depend>
   <build_depend>cl_tf</build_depend>
-  <build_depend>cl_tf2</build_depend>
   <build_depend>cl_transforms_stamped</build_depend>
   <build_depend>actionlib</build_depend>
   <build_depend>roslisp</build_depend>
@@ -30,7 +29,6 @@
   <run_depend>std_msgs</run_depend>
   <run_depend>giskard_msgs</run_depend>
   <run_depend>cl_tf</run_depend>
-  <run_depend>cl_tf2</run_depend>
   <run_depend>cl_transforms_stamped</run_depend>
   <run_depend>actionlib</run_depend>
   <run_depend>roslisp</run_depend>
