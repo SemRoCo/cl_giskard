@@ -241,12 +241,10 @@ cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped)
 and publishes them to the giskard controller command topic.
 If a pose is given as nil, then this function will send the previous non-NIL goal sent to that arm
 If no non-NIL pose was sent to that arm, it will send the arm's current pose (so the arm should not move)."
-  (let* ((left-ee-goal (if pose-left-ee 
-                           (ensure-pose-stamped-msg pose-left-ee)
-                           nil))
-         (right-ee-goal (if pose-right-ee 
-                            (ensure-pose-stamped-msg pose-right-ee)
-                            nil))
+  (let* ((left-ee-goal (when pose-left-ee
+                         (ensure-pose-stamped-msg pose-left-ee)))
+         (right-ee-goal (when pose-right-ee
+                            (ensure-pose-stamped-msg pose-right-ee)))
          (left-ee (if left-ee-goal
                       (roslisp:make-message *giskard-command-topic-part-type*
                                             :goal left-ee-goal
