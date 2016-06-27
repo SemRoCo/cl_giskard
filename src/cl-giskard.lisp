@@ -33,29 +33,31 @@
 (defparameter *left-goal-frame* "/l_gripper_tool_frame")
 (defparameter *right-goal-frame* "/r_gripper_tool_frame")
 
-(defparameter *giskard-command-topic-name* "/pr2_controler/goal")
+(defparameter *giskard-command-topic-name* "/pr2_controller/goal")
 (defparameter *giskard-command-topic-type* "giskard_msgs/WholeBodyCommand")
 (defparameter *giskard-command-topic-part-type* "giskard_msgs/ArmCommand")
 
-(defparameter *giskard-feedback-topic-name* "/pr2_controler/feedback")
+(defparameter *giskard-feedback-topic-name* "/pr2_controller/feedback")
 (defparameter *giskard-feedback-topic-type* "giskard_msgs/ControllerFeedback")
 
 (defparameter *pub-giskard-goal* nil)
 
 (defparameter *giskard-action-client* nil)
 
-(defparameter *giskard-action-server-name* "pr2_controller_action_server")
+(defparameter *giskard-action-server-name* "/controller_action_server/move")
 (defparameter *giskard-action-server-type* "giskard_msgs/WholeBodyAction")
 (defparameter *giskard-action-goal-part-type* "giskard_msgs/ArmCommand")
 (defparameter *giskard-action-goal-type* "giskard_msgs/WholeBodyCommand")
 
 (defparameter *tf-listener* nil)
 
-
 (defun ensure-tf-listener ()
   (if *tf-listener*
     *tf-listener*
-    (setf *tf-listener* (make-instance 'cl-tf:transform-listener))))
+    (progn
+      (setf *tf-listener* (make-instance 'cl-tf:transform-listener))
+      (roslisp:wait-duration 1.0)
+      *tf-listener*)))
 
 (defun ps->msg (pose-stamped)
   (cl-transforms-stamped:make-pose-stamped-msg (cl-transforms-stamped:pose-stamped->pose pose-stamped)
@@ -95,7 +97,11 @@
 (defun ensure-giskard-action-client ()
   (if *giskard-action-client*
     *giskard-action-client*
-    (actionlib-lisp:make-simple-action-client *giskard-action-server-name* *giskard-action-server-type*)))
+    (progn
+      (setf *giskard-action-client* (actionlib-lisp:make-simple-action-client *giskard-action-server-name* *giskard-action-server-type*))
+      (actionlib-lisp:wait-for-server *giskard-action-client*)
+      (roslisp:wait-duration 1.0)
+      *giskard-action-client*)))
 
 (defun cancel-action-goal ()
   (actionlib-lisp:cancel-goal (ensure-giskard-action-client)))
@@ -111,13 +117,15 @@
 
 (defun left-arm-converged ()
   (let* ((result (action-goal-result)))
-    (roslisp:with-fields ((left-arm-converged left_arm_converged)) result
-      left-arm-converged)))
+    (if result
+      (roslisp:with-fields ((left-arm-converged left_arm_converged)) result
+        left-arm-converged))))
 
 (defun right-arm-converged ()
   (let* ((result (action-goal-result)))
-    (roslisp:with-fields ((right-arm-converged right_arm_converged)) result
-      right-arm-converged)))
+    (if result
+      (roslisp:with-fields ((right-arm-converged right_arm_converged)) result
+        right-arm-converged))))
 
 (defun arms-converged ()
   (and (left-arm-converged) (right-arm-converged)))
@@ -149,9 +157,9 @@
                             (roslisp:make-message *giskard-action-goal-part-type*))))
     (actionlib-lisp:send-goal (ensure-giskard-action-client)
                               (actionlib-lisp:make-action-goal-msg (ensure-giskard-action-client)
-                                                                   command (roslisp:make-message *giskard-action-goal-type*
-                                                                                                 :left_ee_goal left-ee-goal
-                                                                                                 :right_ee_goal right-ee-goal))
+                                                                  command (roslisp:make-message *giskard-action-goal-type*
+                                                                                                :left_ee left-ee-goal
+                                                                                                :right_ee right-ee-goal))
                               :feedback-cb (lambda (feedback-msg) 
                                              (let* ((feedback (msg->feedback feedback-msg)))
                                                (apply feedback-cb (list feedback))))
