@@ -59,29 +59,24 @@
       (roslisp:wait-duration 1.0)
       *tf-listener*)))
 
-(defun ps->msg (pose-stamped)
-  (cl-transforms-stamped:make-pose-stamped-msg (cl-transforms-stamped:pose-stamped->pose pose-stamped)
-                                               (cl-transforms-stamped:frame-id pose-stamped)
-                                               (cl-transforms-stamped:stamp pose-stamped)))
-
 (defun ensure-pose-stamped-msg (pose-object)
   (typecase pose-object
     (geometry_msgs-msg:Pose
      pose-object)
     (cl-transforms-stamped:pose-stamped
-     (ps->msg pose-object))
+     (cl-transforms-stamped:to-msg pose-object))
     (cl-transforms-stamped:transform-stamped
-     (ps->msg (cl-transforms-stamped:transform-stamped->pose-stamped pose-object)))
+     (cl-transforms-stamped:to-msg (cl-transforms-stamped:transform-stamped->pose-stamped pose-object)))
     (cl-transforms-stamped:pose
-     (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
-                                                       0.0
-                                                       (cl-transforms-stamped:translation pose-object)
-                                                       (cl-transforms-stamped:rotation pose-object))))
+     (cl-transforms-stamped:to-msg (cl-transforms-stamped:make-pose-stamped *base-frame*
+                                                                     0.0
+                                                                     (cl-transforms-stamped:translation pose-object)
+                                                                     (cl-transforms-stamped:rotation pose-object))))
     (cl-transforms-stamped:transform
-     (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
-                                                       0.0
-                                                       (cl-transforms-stamped:translation pose-object)
-                                                       (cl-transforms-stamped:rotation pose-object))))
+     (cl-transforms-stamped:to-msg (cl-transforms-stamped:make-pose-stamped *base-frame*
+                                                                     0.0
+                                                                     (cl-transforms-stamped:translation pose-object)
+                                                                     (cl-transforms-stamped:rotation pose-object))))
     (T
      (error "Object passed to ensure-pose-stamped-msg is not of a type that can be converted to geometry_msgs/PoseStamped."))))
 
