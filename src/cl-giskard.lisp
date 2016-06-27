@@ -29,7 +29,7 @@
 
 (in-package :cl-giskard)
 
-(defparameter *base-frame* "/base_link")
+(defparameter *base-frame* "base_link")
 (defparameter *left-goal-frame* "/l_gripper_tool_frame")
 (defparameter *right-goal-frame* "/r_gripper_tool_frame")
 
