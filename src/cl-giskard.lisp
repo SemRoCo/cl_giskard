@@ -73,8 +73,8 @@
       (cl-transforms-stamped:make-pose-stamped
        *base-frame*
        0.0
-       (cl-transforms-stamped:translation pose-object)
-       (cl-transforms-stamped:rotation pose-object))))
+       (cl-transforms-stamped:origin pose-object)
+       (cl-transforms-stamped:orientation pose-object))))
     (cl-transforms-stamped:transform
      (cl-transforms-stamped:to-msg
       (cl-transforms-stamped:make-pose-stamped
