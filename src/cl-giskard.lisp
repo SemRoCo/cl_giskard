@@ -33,21 +33,21 @@
 (defparameter *left-goal-frame* "/l_gripper_tool_frame")
 (defparameter *right-goal-frame* "/r_gripper_tool_frame")
 
-(defconstant *giskard-command-topic-name* "/pr2_controler/goal")
-(defconstant *giskard-command-topic-type* "giskard_msgs/WholeBodyCommand")
-(defconstant *giskard-command-topic-part-type* "giskard_msgs/ArmCommand")
+(defparameter *giskard-command-topic-name* "/pr2_controler/goal")
+(defparameter *giskard-command-topic-type* "giskard_msgs/WholeBodyCommand")
+(defparameter *giskard-command-topic-part-type* "giskard_msgs/ArmCommand")
 
-(defconstant *giskard-feedback-topic-name* "/pr2_controler/feedback")
-(defconstant *giskard-feedback-topic-type* "giskard_msgs/ControllerFeedback")
+(defparameter *giskard-feedback-topic-name* "/pr2_controler/feedback")
+(defparameter *giskard-feedback-topic-type* "giskard_msgs/ControllerFeedback")
 
 (defparameter *pub-giskard-goal* nil)
 
 (defparameter *giskard-action-client* nil)
 
-(defconstant *giskard-action-server-name* "pr2_controller_action_server")
-(defconstant *giskard-action-server-type* "giskard_msgs/WholeBodyAction")
-(defconstant *giskard-action-goal-part-type* "giskard_msgs/ArmCommand")
-(defconstant *giskard-action-goal-type* "giskard_msgs/WholeBodyCommand")
+(defparameter *giskard-action-server-name* "pr2_controller_action_server")
+(defparameter *giskard-action-server-type* "giskard_msgs/WholeBodyAction")
+(defparameter *giskard-action-goal-part-type* "giskard_msgs/ArmCommand")
+(defparameter *giskard-action-goal-type* "giskard_msgs/WholeBodyCommand")
 
 (defparameter *tf-listener* nil)
 
@@ -58,7 +58,7 @@
     (setf *tf-listener* (make-instance 'cl-tf:transform-listener))))
 
 (defun ps->msg (pose-stamped)
-  (cl-transforms-stamped:make-pose-stamped-msg (cl-transforms-stamped:pose pose-stamped)
+  (cl-transforms-stamped:make-pose-stamped-msg (cl-transforms-stamped:pose-stamped->pose pose-stamped)
                                                (cl-transforms-stamped:frame-id pose-stamped)
                                                (cl-transforms-stamped:stamp pose-stamped)))
 
@@ -134,7 +134,7 @@
 
 (defun send-action-goal (pose-left-ee pose-right-ee &key 
                          (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
-                         (done-cb (lambda (status result) (declare (ignore state) (ignore result))))
+                         (done-cb (lambda (status result) (declare (ignore status) (ignore result))))
                          (active-cb (lambda () )))
   "Takes two poses (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) and publishes them to the giskard controller action server. If a pose is given as nil, then the corresponding arm will keep doing what it was doing before this function was called (and if it has no previous goals, it will stay put).
    
@@ -162,13 +162,13 @@
 
 (defun send-left-arm-action (pose-left-ee &key
                               (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
-                              (done-cb (lambda (status result) (declare (ignore state) (ignore result))))
+                              (done-cb (lambda (status result) (declare (ignore status) (ignore result))))
                               (active-cb (lambda () )))
   (send-action-goal pose-left-ee nil :feedback-cb feedback-cb :done-cb done-cb :active-cb active-cb))
 
 (defun send-right-arm-action (pose-right-ee &key
                                (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
-                               (done-cb (lambda (status result) (declare (ignore state) (ignore result))))
+                               (done-cb (lambda (status result) (declare (ignore status) (ignore result))))
                                (active-cb (lambda () )))
   (send-action-goal nil pose-right-ee :feedback-cb feedback-cb :done-cb done-cb :active-cb active-cb))
 
