@@ -61,7 +61,7 @@
 
 (defun ensure-pose-stamped-msg (pose-object)
   (typecase pose-object
-    (geometry_msgs-msg:Pose
+    (geometry_msgs-msg:PoseStamped
      pose-object)
     (cl-transforms-stamped:pose-stamped
      (cl-transforms-stamped:to-msg pose-object))
