@@ -50,58 +50,67 @@
 (defparameter *giskard-action-goal-type* "giskard_msgs/WholeBodyCommand")
 
 (defparameter *tf-listener* nil)
+(defparameter *tf-default-timeout* 2.0)
 
 (defun ensure-tf-listener ()
-  (if *tf-listener*
-    *tf-listener*
-    (progn
-      (setf *tf-listener* (make-instance 'cl-tf:transform-listener))
-      (roslisp:wait-duration 1.0)
-      *tf-listener*)))
-
-(defun ps->msg (pose-stamped)
-  (cl-transforms-stamped:make-pose-stamped-msg (cl-transforms-stamped:pose-stamped->pose pose-stamped)
-                                               (cl-transforms-stamped:frame-id pose-stamped)
-                                               (cl-transforms-stamped:stamp pose-stamped)))
+  (unless *tf-listener*
+    (setf *tf-listener* (make-instance 'cl-tf:transform-listener)))
+  *tf-listener*)
 
 (defun ensure-pose-stamped-msg (pose-object)
-  (cond
-    ((typep pose-object 'geometry_msgs-msg:Pose)
-      pose-object)
-    ((typep pose-object 'cl-transforms-stamped:pose-stamped)
-      (ps->msg pose-object))
-    ((typep pose-object 'cl-transforms-stamped:transform-stamped)
-      (ps->msg (cl-transforms-stamped:transform-stamped->pose-stamped pose-object)))
-    ((typep pose-object 'cl-transforms-stamped:pose)
-      (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
-                                                        0.0
-                                                        (cl-transforms-stamped:translation pose-object)
-                                                        (cl-transforms-stamped:rotation pose-object))))
-    ((typep pose-object 'cl-transforms-stamped:transform)
-      (ps->msg (cl-transforms-stamped:make-pose-stamped *base-frame*
-                                                        0.0
-                                                        (cl-transforms-stamped:translation pose-object)
-                                                        (cl-transforms-stamped:rotation pose-object))))
+  (typecase pose-object
+    (geometry_msgs-msg:PoseStamped
+     pose-object)
+    (cl-transforms-stamped:pose-stamped
+     (cl-transforms-stamped:to-msg pose-object))
+    (cl-transforms-stamped:transform-stamped
+     (cl-transforms-stamped:to-msg
+      (cl-transforms-stamped:transform-stamped->pose-stamped pose-object)))
+    (cl-transforms-stamped:pose
+     (cl-transforms-stamped:to-msg
+      (cl-transforms-stamped:make-pose-stamped
+       *base-frame*
+       0.0
+       (cl-transforms-stamped:origin pose-object)
+       (cl-transforms-stamped:orientation pose-object))))
+    (cl-transforms-stamped:transform
+     (cl-transforms-stamped:to-msg
+      (cl-transforms-stamped:make-pose-stamped
+       *base-frame*
+       0.0
+       (cl-transforms-stamped:translation pose-object)
+       (cl-transforms-stamped:rotation pose-object))))
     (T
-      (error "Object passed to ensure-pose-stamped-msg is not of a type that can be converted to geometry_msgs/PoseStamped."))))
+     (error "Object passed to ensure-pose-stamped-msg is not of a type that can be converted to geometry_msgs/PoseStamped."))))
 
 ;;;; Action-interface to the giskard controller.
 ;;;; 
 
 (defun get-left-arm-transform ()
-  (cl-tf:lookup-transform (ensure-tf-listener) *base-frame* *left-goal-frame*))
+  (cl-tf:lookup-transform
+   (ensure-tf-listener)
+   *base-frame*
+   *left-goal-frame*
+   :timeout *tf-default-timeout*))
 
 (defun get-right-arm-transform ()
-  (cl-tf:lookup-transform (ensure-tf-listener) *base-frame* *right-goal-frame*))
+  (cl-tf:lookup-transform
+   (ensure-tf-listener)
+   *base-frame*
+   *right-goal-frame*
+   :timeout *tf-default-timeout*))
 
 (defun ensure-giskard-action-client ()
   (if *giskard-action-client*
-    *giskard-action-client*
-    (progn
-      (setf *giskard-action-client* (actionlib-lisp:make-simple-action-client *giskard-action-server-name* *giskard-action-server-type*))
-      (actionlib-lisp:wait-for-server *giskard-action-client*)
-      (roslisp:wait-duration 1.0)
-      *giskard-action-client*)))
+      *giskard-action-client*
+      (progn
+        (setf *giskard-action-client*
+              (actionlib-lisp:make-simple-action-client
+               *giskard-action-server-name*
+               *giskard-action-server-type*))
+        (actionlib-lisp:wait-for-server *giskard-action-client*)
+        (roslisp:wait-duration 1.0)
+        *giskard-action-client*)))
 
 (defun cancel-action-goal ()
   (actionlib-lisp:cancel-goal (ensure-giskard-action-client)))
@@ -118,14 +127,14 @@
 (defun left-arm-converged ()
   (let* ((result (action-goal-result)))
     (if result
-      (roslisp:with-fields ((left-arm-converged left_arm_converged)) result
-        left-arm-converged))))
+        (roslisp:with-fields ((left-arm-converged left_arm_converged)) result
+          left-arm-converged))))
 
 (defun right-arm-converged ()
   (let* ((result (action-goal-result)))
     (if result
-      (roslisp:with-fields ((right-arm-converged right_arm_converged)) result
-        right-arm-converged))))
+        (roslisp:with-fields ((right-arm-converged right_arm_converged)) result
+          right-arm-converged))))
 
 (defun arms-converged ()
   (and (left-arm-converged) (right-arm-converged)))
@@ -140,45 +149,79 @@
   ;; but until then using the message itself is good enough.
   result-msg)
 
-(defun send-action-goal (pose-left-ee pose-right-ee &key 
-                         (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
-                         (done-cb (lambda (status result) (declare (ignore status) (ignore result))))
-                         (active-cb (lambda () )))
-  "Takes two poses (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) and publishes them to the giskard controller action server. If a pose is given as nil, then the corresponding arm will keep doing what it was doing before this function was called (and if it has no previous goals, it will stay put).
-   
-   feedback-cb should be either left unset or a (lambda (msg) ..) where msg is of type giskard_msgs-msg:WholeBodyState.
-   done-cb should be either left unset or a (lambda (status msg) ..) where status is an actionlib-lisp status and msg is of type giskard_msgs-msg:WholeBodyState.
-   active-cb should be left unset or a (lambda () ..)."
-  (let* ((left-ee-goal (if pose-left-ee 
-                           (roslisp:make-message *giskard-action-goal-part-type* :goal (ensure-pose-stamped-msg pose-left-ee) :process T)
+(defun send-action-goal (pose-left-ee pose-right-ee
+                         &key
+                           (feedback-cb (lambda (feedback-msg)
+                                          (declare (ignore feedback-msg))))
+                           (done-cb (lambda (status result)
+                                      (declare (ignore status result))))
+                           (active-cb (lambda () )))
+  (declare (type (or null
+                     cl-transforms-stamped:pose
+                     cl-transforms-stamped:pose-stamped
+                     cl-transforms-stamped:transform
+                     cl-transforms-stamped:transform-stamped)
+                 pose-left-ee pose-right-ee))
+  "Takes two poses and publishes them to the giskard controller action server.
+If a pose is given as nil, then the corresponding arm will keep doing
+what it was doing before this function was called (and if it has no previous goals, it will stay put).
+
+feedback-cb should be either left unset or a (lambda (msg) ..)
+  where msg is of type giskard_msgs-msg:WholeBodyState.
+done-cb should be either left unset or a (lambda (status msg) ..)
+  where status is an actionlib-lisp status and msg is of type giskard_msgs-msg:WholeBodyState.
+active-cb should be left unset or a (lambda () ..)."
+  (let* ((left-ee-goal (if pose-left-ee
+                           (roslisp:make-message
+                            *giskard-action-goal-part-type*
+                            :goal (ensure-pose-stamped-msg pose-left-ee)
+                            :process T)
                            (roslisp:make-message *giskard-action-goal-part-type*)))
-         (right-ee-goal (if pose-right-ee 
-                            (roslisp:make-message *giskard-action-goal-part-type* :goal (ensure-pose-stamped-msg pose-right-ee) :process T)
+         (right-ee-goal (if pose-right-ee
+                            (roslisp:make-message
+                             *giskard-action-goal-part-type*
+                             :goal (ensure-pose-stamped-msg pose-right-ee)
+                             :process T)
                             (roslisp:make-message *giskard-action-goal-part-type*))))
-    (actionlib-lisp:send-goal (ensure-giskard-action-client)
-                              (actionlib-lisp:make-action-goal-msg (ensure-giskard-action-client)
-                                                                  command (roslisp:make-message *giskard-action-goal-type*
-                                                                                                :left_ee left-ee-goal
-                                                                                                :right_ee right-ee-goal))
-                              :feedback-cb (lambda (feedback-msg) 
-                                             (let* ((feedback (msg->feedback feedback-msg)))
-                                               (apply feedback-cb (list feedback))))
-                              :done-cb (lambda (status result-msg)
-                                         (let* ((result (msg->result result-msg)))
-                                           (apply done-cb (list status result))))
-                              :active-cb active-cb)))
+    (actionlib-lisp:send-goal
+     (ensure-giskard-action-client)
+     (actionlib-lisp:make-action-goal-msg
+         (ensure-giskard-action-client)
+       command
+       (roslisp:make-message *giskard-action-goal-type*
+                             :left_ee left-ee-goal
+                             :right_ee right-ee-goal))
+     :feedback-cb (lambda (feedback-msg)
+                    (let* ((feedback (msg->feedback feedback-msg)))
+                      (apply feedback-cb (list feedback))))
+     :done-cb (lambda (status result-msg)
+                (let* ((result (msg->result result-msg)))
+                  (apply done-cb (list status result))))
+     :active-cb active-cb)))
 
-(defun send-left-arm-action (pose-left-ee &key
-                              (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
-                              (done-cb (lambda (status result) (declare (ignore status) (ignore result))))
-                              (active-cb (lambda () )))
-  (send-action-goal pose-left-ee nil :feedback-cb feedback-cb :done-cb done-cb :active-cb active-cb))
-
-(defun send-right-arm-action (pose-right-ee &key
-                               (feedback-cb (lambda (feedback-msg) (declare (ignore feedback-msg))))
-                               (done-cb (lambda (status result) (declare (ignore status) (ignore result))))
+(defun send-left-arm-action (pose-left-ee
+                             &key
+                               (feedback-cb (lambda (feedback-msg)
+                                              (declare (ignore feedback-msg))))
+                               (done-cb (lambda (status result)
+                                          (declare (ignore status result))))
                                (active-cb (lambda () )))
-  (send-action-goal nil pose-right-ee :feedback-cb feedback-cb :done-cb done-cb :active-cb active-cb))
+  (send-action-goal pose-left-ee nil
+                    :feedback-cb feedback-cb
+                    :done-cb done-cb
+                    :active-cb active-cb))
+
+(defun send-right-arm-action (pose-right-ee
+                              &key
+                                (feedback-cb (lambda (feedback-msg)
+                                               (declare (ignore feedback-msg))))
+                                (done-cb (lambda (status result)
+                                           (declare (ignore status result))))
+                                (active-cb (lambda () )))
+  (send-action-goal nil pose-right-ee
+                    :feedback-cb feedback-cb
+                    :done-cb done-cb
+                    :active-cb active-cb))
 
 ;;;; Topic-interface to the giskard controller itself. These functions look like they should be exported by the package, but aren't.
 ;;;; This is because the topic interface to the controller itself is not actually intended for use by anyone except giskard.
@@ -193,44 +236,72 @@
 
 (defun ensure-goal-publisher ()
   (if *pub-giskard-goal*
-    *pub-giskard-goal*
-    (progn
-      (setf *pub-giskard-goal* (roslisp:advertise *giskard-command-topic-name* *giskard-command-topic-type* :latch nil))
-      (roslisp:wait-duration 2.0)
-      *pub-giskard-goal*)))
+      *pub-giskard-goal*
+      (progn
+        (setf *pub-giskard-goal*
+              (roslisp:advertise *giskard-command-topic-name*
+                                 *giskard-command-topic-type*
+                                 :latch nil))
+        (roslisp:wait-duration 2.0)
+        *pub-giskard-goal*)))
 
 (defun send-two-arm-command (pose-left-ee pose-right-ee)
-  "Takes two poses (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) and publishes them to the giskard controller command topic. If a pose is given as nil, then this function will send the previous non-NIL goal sent to that arm. If no non-NIL pose was sent to that arm, it will send the arm's current pose (so the arm should not move)."
-  (let* ((left-ee-goal (if pose-left-ee 
-                           (ensure-pose-stamped-msg pose-left-ee)
-                           nil))
-         (right-ee-goal (if pose-right-ee 
-                            (ensure-pose-stamped-msg pose-right-ee)
-                            nil))
+  (declare (type (or null
+                     cl-transforms-stamped:pose
+                     cl-transforms-stamped:pose-stamped
+                     cl-transforms-stamped:transform
+                     cl-transforms-stamped:transform-stamped)
+                 pose-left-ee pose-right-ee))
+  "Takes two poses and publishes them to the giskard controller command topic.
+If a pose is given as nil, then this function will send the previous non-NIL goal sent to that arm
+If no non-NIL pose was sent to that arm, it will send the arm's current pose (so the arm should not move)."
+  (let* ((left-ee-goal (when pose-left-ee
+                         (ensure-pose-stamped-msg pose-left-ee)))
+         (right-ee-goal (when pose-right-ee
+                            (ensure-pose-stamped-msg pose-right-ee)))
          (left-ee (if left-ee-goal
-                    (roslisp:make-message *giskard-command-topic-part-type*
-                                          :goal left-ee-goal
-                                          :process T)
-                    (roslisp:make-message *giskard-command-topic-part-type*)))
+                      (roslisp:make-message *giskard-command-topic-part-type*
+                                            :goal left-ee-goal
+                                            :process T)
+                      (roslisp:make-message *giskard-command-topic-part-type*)))
          (right-ee (if right-ee-goal
-                     (roslisp:make-message *giskard-command-topic-part-type*
-                                           :goal right-ee-goal
-                                           :process T)
-                    (roslisp:make-message *giskard-command-topic-part-type*))))
+                       (roslisp:make-message *giskard-command-topic-part-type*
+                                             :goal right-ee-goal
+                                             :process T)
+                       (roslisp:make-message *giskard-command-topic-part-type*))))
     (roslisp:publish (ensure-goal-publisher)
                      (roslisp:make-message *giskard-command-topic-type*
                                            :left_ee left-ee
                                            :right_ee right-ee))))
 
 (defun send-left-arm-command (pose-left-ee)
-  "A convenience function to send a goal (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) just to the left arm. The right arm will continue to do what it was doing (following the previous goal, or staying put if there was no previous goal)."
+  (declare (type (or null
+                     cl-transforms-stamped:pose
+                     cl-transforms-stamped:pose-stamped
+                     cl-transforms-stamped:transform
+                     cl-transforms-stamped:transform-stamped)
+                 pose-left-ee))
+  "A convenience function to send a goal just to the left arm.
+The right arm will continue to do what it was doing (following the previous goal,
+or staying put if there was no previous goal)."
   (send-two-arm-command pose-left-ee nil))
 
 (defun send-right-arm-command (pose-right-ee)
-  "A convenience function to send a goal (OR NIL cl-transforms-stamped:pose cl-transforms-stamped:pose-stamped cl-transforms-stamped:transform cl-transforms-stamped:transform-stamped) just to the right arm. The right arm will continue to do what it was doing (following the previous goal, or staying put if there was no previous goal)."
+  (declare (type (or null
+                     cl-transforms-stamped:pose
+                     cl-transforms-stamped:pose-stamped
+                     cl-transforms-stamped:transform
+                     cl-transforms-stamped:transform-stamped)
+                 pose-right-ee))
+  "A convenience function to send a goal just to the right arm.
+The right arm will continue to do what it was doing (following the previous goal,
+or staying put if there was no previous goal)."
   (send-two-arm-command nil pose-right-ee))
 
 (defun setup-feedback-listener (callback-fn &key (max-queue-length 'infty))
   "Configures callback-fn to be called whenever the giskard controller feedback topic is updated."
-  (roslisp:subscribe *giskard-feedback-topic-name* *giskard-feedback-topic-type* callback-fn :max-queue-length max-queue-length))
+  (roslisp:subscribe *giskard-feedback-topic-name*
+                     *giskard-feedback-topic-type*
+                     callback-fn
+                     :max-queue-length max-queue-length))
 
