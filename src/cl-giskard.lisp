@@ -106,6 +106,13 @@
     (roslisp:wait-duration 1.0)) ; somehow wait-for-server doesn't help here
   *giskard-action-client*)
 
+(defun destroy-giskard-action-client ()
+  (setf *giskard-action-client* nil))
+
+(roslisp-utilities:register-ros-cleanup-function destroy-giskard-action-client)
+;; if a node is restarted and the action client is not released things stop working
+
+
 (defun cancel-action-goal ()
   (actionlib-lisp:cancel-goal (ensure-giskard-action-client)))
 
