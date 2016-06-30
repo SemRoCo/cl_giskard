@@ -81,14 +81,14 @@
 ;;;; 
 
 (defun get-left-arm-transform (tf-listener)
-  (cl-tf:lookup-transform
+  (cl-transforms-stamped:lookup-transform
    tf-listener
    *base-frame*
    *left-goal-frame*
    :timeout *tf-default-timeout*))
 
 (defun get-right-arm-transform (tf-listener)
-  (cl-tf:lookup-transform
+  (cl-transforms-stamped:lookup-transform
    tf-listener
    *base-frame*
    *right-goal-frame*
