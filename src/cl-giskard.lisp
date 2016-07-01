@@ -81,30 +81,37 @@
 ;;;; 
 
 (defun get-left-arm-transform (tf-listener)
-  (cl-tf:lookup-transform
+  (cl-transforms-stamped:lookup-transform
    tf-listener
    *base-frame*
    *left-goal-frame*
    :timeout *tf-default-timeout*))
 
 (defun get-right-arm-transform (tf-listener)
-  (cl-tf:lookup-transform
+  (cl-transforms-stamped:lookup-transform
    tf-listener
    *base-frame*
    *right-goal-frame*
    :timeout *tf-default-timeout*))
 
 (defun ensure-giskard-action-client ()
-  (if *giskard-action-client*
-      *giskard-action-client*
-      (progn
-        (setf *giskard-action-client*
-              (actionlib-lisp:make-simple-action-client
-               *giskard-action-server-name*
-               *giskard-action-server-type*))
-        (actionlib-lisp:wait-for-server *giskard-action-client*)
-        (roslisp:wait-duration 1.0)
-        *giskard-action-client*)))
+  (unless *giskard-action-client*
+    (setf *giskard-action-client*
+          (actionlib-lisp:make-simple-action-client
+           *giskard-action-server-name*
+           *giskard-action-server-type*))
+    (loop until (actionlib-lisp:wait-for-server *giskard-action-client* 5.0)
+          do (roslisp:ros-info (cl-giskard) "Waiting for giskard action server."))
+    (roslisp:ros-info (cl-giskard) "Action client created.")
+    (roslisp:wait-duration 1.0)) ; somehow wait-for-server doesn't help here
+  *giskard-action-client*)
+
+(defun destroy-giskard-action-client ()
+  (setf *giskard-action-client* nil))
+
+(roslisp-utilities:register-ros-cleanup-function destroy-giskard-action-client)
+;; if a node is restarted and the action client is not released things stop working
+
 
 (defun cancel-action-goal ()
   (actionlib-lisp:cancel-goal (ensure-giskard-action-client)))

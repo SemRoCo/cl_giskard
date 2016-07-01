@@ -8,15 +8,13 @@
   :maintainer "Mihai Pomarlan <blandc@cs.uni-bremen.com>"
   :licence "BSD"
   :description "Wrapper giskard->lisp."
-  :depends-on (:cl-tf
-               :cl-transforms-stamped
-               :giskard_msgs-msg
+  :depends-on (:giskard_msgs-msg
                :giskard_msgs-srv
+               :geometry_msgs-msg
+               :cl-transforms-stamped
                :actionlib-lisp
-               :ros-load-manifest
-               :roslisp-utilities
                :roslisp
-               :geometry_msgs-msg)
+               :roslisp-utilities)
   :components
   ((:module "src"
             :components
