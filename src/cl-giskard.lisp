@@ -128,14 +128,14 @@
 (defun left-arm-converged ()
   (let* ((result (action-goal-result)))
     (if result
-        (roslisp:with-fields ((left-arm-converged left_arm_converged)) result
-          left-arm-converged))))
+        (roslisp:with-fields ((left-arm-pos-converged left_arm_pos_converged) (left-arm-rot-converged left_arm_rot_converged)) result
+          (values (and left-arm-pos-converged left-arm-rot-converged) left-arm-pos-converged left-arm-rot-converged)))))
 
 (defun right-arm-converged ()
   (let* ((result (action-goal-result)))
     (if result
-        (roslisp:with-fields ((right-arm-converged right_arm_converged)) result
-          right-arm-converged))))
+        (roslisp:with-fields ((right-arm-pos-converged right_arm_pos_converged) (right-arm-rot-converged right_arm_rot_converged)) result
+          (values (and right-arm-pos-converged right-arm-rot-converged) right-arm-pos-converged right-arm-rot-converged)))))
 
 (defun arms-converged ()
   (and (left-arm-converged) (right-arm-converged)))
