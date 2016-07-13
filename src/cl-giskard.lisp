@@ -134,7 +134,7 @@
   (sb-thread:with-mutex (*feedback-mutex*)
     *left-arm-converged*))
 
-(defun left-arm-converged ()
+(defun right-arm-converged ()
   (sb-thread:with-mutex (*feedback-mutex*)
     *right-arm-converged*))
 
