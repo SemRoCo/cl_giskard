@@ -51,6 +51,11 @@
 
 (defparameter *tf-default-timeout* 2.0)
 
+(defparameter *left-arm-converged* nil)
+(defparameter *right-arm-converged* nil)
+
+(defparameter *feedback-mutex* (sb-thread:make-mutex))
+
 (defun ensure-pose-stamped-msg (pose-object)
   (typecase pose-object
     (geometry_msgs-msg:PoseStamped
@@ -126,16 +131,24 @@
   (actionlib-lisp:wait-for-result (ensure-giskard-action-client) timeout))
 
 (defun left-arm-converged ()
-  (let* ((result (action-goal-result)))
-    (if result
-        (roslisp:with-fields ((left-arm-pos-converged left_arm_pos_converged) (left-arm-rot-converged left_arm_rot_converged)) result
-          (values (and left-arm-pos-converged left-arm-rot-converged) left-arm-pos-converged left-arm-rot-converged)))))
+  (sb-thread:with-mutex (*feedback-mutex*)
+    *left-arm-converged*))
 
-(defun right-arm-converged ()
-  (let* ((result (action-goal-result)))
-    (if result
-        (roslisp:with-fields ((right-arm-pos-converged right_arm_pos_converged) (right-arm-rot-converged right_arm_rot_converged)) result
-          (values (and right-arm-pos-converged right-arm-rot-converged) right-arm-pos-converged right-arm-rot-converged)))))
+(defun left-arm-converged ()
+  (sb-thread:with-mutex (*feedback-mutex*)
+    *right-arm-converged*))
+
+;;(defun left-arm-converged ()
+;;  (let* ((result (action-goal-result)))
+;;    (if result
+;;        (roslisp:with-fields ((left-arm-pos-converged left_arm_pos_converged) (left-arm-rot-converged left_arm_rot_converged)) result
+;;          (values (and left-arm-pos-converged left-arm-rot-converged) left-arm-pos-converged left-arm-rot-converged)))))
+;;
+;;(defun right-arm-converged ()
+;;  (let* ((result (action-goal-result)))
+;;    (if result
+;;        (roslisp:with-fields ((right-arm-pos-converged right_arm_pos_converged) (right-arm-rot-converged right_arm_rot_converged)) result
+;;          (values (and right-arm-pos-converged right-arm-rot-converged) right-arm-pos-converged right-arm-rot-converged)))))
 
 (defun arms-converged ()
   (and (left-arm-converged) (right-arm-converged)))
@@ -194,9 +207,19 @@ active-cb should be left unset or a (lambda () ..)."
                              :right_ee right-ee-goal))
      :feedback-cb (lambda (feedback-msg)
                     (let* ((feedback (msg->feedback feedback-msg)))
+                      ;; this is to extract information about whether the arms have converged
+                      (roslisp:with-fields ((left-arm-pos-converged left_arm_pos_converged)
+                                            (left-arm-rot-converged left_arm_rot_converged)
+                                            (right-arm-pos-converged right_arm_pos_converged)
+                                            (right-arm-rot-converged right_arm_rot_converged)) feedback-msg
+                        (sb-thread:with-mutex (*feedback-mutex*)
+                          (setf *left-arm-converged* (and left-arm-pos-converged left-arm-rot-converged))
+                          (setf *right-arm-converged* (and right-arm-pos-converged right-arm-rot-converged))))
                       (apply feedback-cb (list feedback))))
      :done-cb (lambda (status result-msg)
                 (let* ((result (msg->result result-msg)))
+                  ;; this is to prevent the actionlib client from sending a done-cb indefinitely
+                  (cancel-action-goal)
                   (apply done-cb (list status result))))
      :active-cb active-cb)))
 
