@@ -208,19 +208,24 @@ active-cb should be left unset or a (lambda () ..)."
      :feedback-cb (lambda (feedback-msg)
                     (let* ((feedback (msg->feedback feedback-msg)))
                       ;; this is to extract information about whether the arms have converged
-                      (roslisp:with-fields ((left-arm-pos-converged left_arm_pos_converged)
-                                            (left-arm-rot-converged left_arm_rot_converged)
-                                            (right-arm-pos-converged right_arm_pos_converged)
-                                            (right-arm-rot-converged right_arm_rot_converged)) feedback-msg
+                      (roslisp:with-fields ((left-arm-pos-converged (left_arm_pos_converged state))
+                                            (left-arm-rot-converged (left_arm_rot_converged state))
+                                            (right-arm-pos-converged (right_arm_pos_converged state))
+                                            (right-arm-rot-converged (right_arm_rot_converged state))) feedback-msg
                         (sb-thread:with-mutex (*feedback-mutex*)
                           (setf *left-arm-converged* (and left-arm-pos-converged left-arm-rot-converged))
                           (setf *right-arm-converged* (and right-arm-pos-converged right-arm-rot-converged))))
                       (apply feedback-cb (list feedback))))
      :done-cb (lambda (status result-msg)
                 (let* ((result (msg->result result-msg)))
+                  (apply done-cb (list status result))
                   ;; this is to prevent the actionlib client from sending a done-cb indefinitely
-                  (cancel-action-goal)
-                  (apply done-cb (list status result))))
+                  (actionlib-lisp:send-goal (ensure-giskard-action-client)
+                                            (actionlib-lisp:make-action-goal-msg (ensure-giskard-action-client)
+                                                                                 command
+                                                                                 (roslisp:make-message *giskard-action-goal-type*
+                                                                                                       :left_ee left-ee-goal
+                                                                                                       :right_ee right-ee-goal)))))
      :active-cb active-cb)))
 
 (defun send-left-arm-action (pose-left-ee
