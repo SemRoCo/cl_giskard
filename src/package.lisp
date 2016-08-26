@@ -35,6 +35,7 @@
            #:action-goal-status
            #:action-goal-result
            #:send-action-goal
+           #:send-yaml-action
            #:send-left-arm-action
            #:send-right-arm-action
            #:wait-for-action-result
