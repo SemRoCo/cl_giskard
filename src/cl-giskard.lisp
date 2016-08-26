@@ -154,6 +154,54 @@
   ;; but until then using the message itself is good enough.
   result-msg)
 
+(defun send-yaml-action (yaml thresholds
+                         &key
+                           (feedback-cb (lambda (feedback-msg)
+                                          (declare (ignore feedback-msg))))
+                           (done-cb (lambda (status result)
+                                      (declare (ignore status result))))
+                           (active-cb (lambda () )))
+  "Takes a yaml string and a list of string-value pairs and sends them
+  to the giskard action server."
+  (let* ((thresholds (mapcar (lambda (threshold)
+                               (let* ((semantics (car threshold))
+                                      (value (cadr threshold)))
+                                 (roslisp:make-message "giskard_msgs/SemanticFloat64"
+                                                       :semantics semantics
+                                                       :value value)))
+                             thresholds)))
+    (actionlib-lisp:send-goal
+      (ensure-giskard-action-client)
+      (actionlib-lisp:make-action-goal-msg
+        (ensure-giskard-action-client)
+        command
+          (roslisp:make-message *giskard-action-goal-type*
+                               :type 1 ;; Use the YAML_CONTROLLER interface
+                               :yaml_spec yaml
+                               :convergence_thresholds (coerce thresholds 'vector)))
+      :feedback-cb (lambda (feedback-msg)
+                    (let* ((feedback (msg->feedback feedback-msg)))
+                      ;; this is to extract information about whether the arms have converged
+                      (roslisp:with-fields ((left-arm-moving (left_arm_moving state))
+                                            (torso-moving (torso_moving state))
+                                            (right-arm-moving (right_arm_moving state))) feedback-msg
+                        (sb-thread:with-mutex (*feedback-mutex*)
+                          (setf *left-arm-converged* (and (not left-arm-moving) (not torso-moving)))
+                          (setf *right-arm-converged* (and (not right-arm-moving) (not torso-moving)))))
+                      (apply feedback-cb (list feedback))))
+      :done-cb (lambda (status result-msg)
+                (let* ((result (msg->result result-msg)))
+                  (apply done-cb (list status result))
+                  ;; this is to prevent the actionlib client from sending a done-cb indefinitely
+                  (actionlib-lisp:send-goal (ensure-giskard-action-client)
+                                            (actionlib-lisp:make-action-goal-msg (ensure-giskard-action-client)
+                                                                                 command
+                                                                                 (roslisp:make-message *giskard-action-goal-type*
+                                                                                                       :type 1
+                                                                                                       :yaml_spec yaml
+                                                                                                       :convergence_thresholds (coerce thresholds 'vector))))))
+      :active-cb active-cb)))
+
 (defun send-action-goal (goal-left-ee goal-right-ee
                          &key
                            (feedback-cb (lambda (feedback-msg)
